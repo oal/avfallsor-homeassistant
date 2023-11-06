@@ -1,7 +1,7 @@
 use scraper::{Html, Selector};
 use std::collections::HashMap;
 use serde::Deserialize;
-use crate::{Pickup, PickupType};
+use crate::pickup::{Pickup, PickupType};
 
 const ADDRESS_ENDPOINT: &str = "https://avfallsor.no/wp-json/addresses/v1/address";
 
@@ -40,10 +40,6 @@ pub fn get_next_pickups(client: &reqwest::blocking::Client, url: &str) -> anyhow
 
         let kind = PickupType::from_str(description)?;
 
-        Some(Pickup {
-            date,
-            label: description.to_string(),
-            kind,
-        })
+        Some(Pickup::new(date, description.to_string(), kind))
     }).collect())
 }
