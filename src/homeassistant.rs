@@ -14,5 +14,4 @@ pub struct ConfigMessage {
     pub(crate) unique_id: String,
     pub(crate) object_id: String,
     pub(crate) device: Device,
-    // value_template: String,
 }

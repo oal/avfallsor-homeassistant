@@ -1,5 +1,6 @@
 use scraper::{Html, Selector};
 use std::collections::HashMap;
+use chrono::{NaiveDate, NaiveTime, TimeZone};
 use serde::Deserialize;
 use crate::pickup::{Pickup, PickupType};
 
@@ -12,7 +13,7 @@ pub struct AddressResponse {
 }
 
 pub fn get_address_page(client: &reqwest::blocking::Client, address: &str) -> anyhow::Result<AddressResponse> {
-    let mut response = client.get(ADDRESS_ENDPOINT)
+    let response = client.get(ADDRESS_ENDPOINT)
         .query(&[("address", address)])
         .send()?;
 
@@ -21,8 +22,8 @@ pub fn get_address_page(client: &reqwest::blocking::Client, address: &str) -> an
         .ok_or_else(|| anyhow::anyhow!("Address not found"))
 }
 
-pub fn get_next_pickups(client: &reqwest::blocking::Client, url: &str) -> anyhow::Result<Vec<Pickup>> {
-    let mut response = client.get(url).send()?;
+pub fn get_next_pickups(client: &reqwest::blocking::Client, url: &str, collection_time: &NaiveTime) -> anyhow::Result<Vec<Pickup>> {
+    let response = client.get(url).send()?;
     let body = response.text()?;
     let document = Html::parse_document(&body);
 
@@ -34,12 +35,13 @@ pub fn get_next_pickups(client: &reqwest::blocking::Client, url: &str) -> anyhow
     // Extract pickup kinds and dates
     Ok(document.select(&next_pickups_selector).filter_map(|el| {
         let description = el.select(&description_selector).next()?;
-        let date_str = el.select(&date_selector).next()?;
-        let date = chrono::NaiveDate::parse_from_str(date_str.value().attr("value")?, "%Y-%m-%d").ok()?;
+        let date_str = el.select(&date_selector).next()?.value().attr("value")?;
         let description = description.value().attr("value")?;
 
         let kind = PickupType::from_str(description)?;
 
-        Some(Pickup::new(date, description.to_string(), kind))
+        let date_time = NaiveDate::parse_from_str(date_str, "%F").ok()?.and_time(*collection_time);
+        let local_date_time = chrono::Local.from_local_datetime(&date_time).single()?;
+        Some(Pickup::new(local_date_time, description.to_string(), kind))
     }).collect())
 }

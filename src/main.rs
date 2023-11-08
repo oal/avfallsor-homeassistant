@@ -3,10 +3,10 @@ use std::time::Duration;
 use rumqttc::MqttOptions;
 use rumqttc::Event::Incoming;
 use rumqttc::PubAck;
-use serde::{Deserialize, Serialize};
 use crate::web::{get_address_page, get_next_pickups};
 use dotenvy::dotenv;
 use std::env;
+use chrono::NaiveTime;
 use crate::pickup::Pickup;
 
 mod web;
@@ -16,12 +16,12 @@ mod pickup;
 const INTEGRATION_NAME: &str = "Avfall Sør";
 const INTEGRATION_IDENTIFIER: &str = "avfallsor";
 
-fn get_pickups(address: &str) -> anyhow::Result<Vec<Pickup>> {
+fn get_pickups(address: &str, collection_time: &NaiveTime) -> anyhow::Result<Vec<Pickup>> {
     let client = reqwest::blocking::Client::new();
     let address_info = get_address_page(&client, &address);
 
     let url = address_info?.href;
-    get_next_pickups(&client, &url)
+    get_next_pickups(&client, &url, collection_time)
 }
 
 fn wait_for_acks(connection: &mut rumqttc::Connection, num_packets: usize) {
@@ -41,6 +41,7 @@ fn wait_for_acks(connection: &mut rumqttc::Connection, num_packets: usize) {
 
 struct AppConfig {
     address: String,
+    collection_time: NaiveTime,
     mqtt_host: String,
     mqtt_port: u16,
 }
@@ -50,13 +51,16 @@ impl AppConfig {
         dotenv().expect(".env file not found");
 
         let address = env::var("ADDRESS").expect("ADDRESS not set");
+        let collection_time = env::var("COLLECTION_TIME").or::<()>(Ok("8".to_string())).unwrap();
+        let collection_time = NaiveTime::parse_from_str(&format!("{}:00", collection_time), "%H:%M").expect("COLLECTION_TIME is not a valid time");
 
-        let mqtt_host = env::var("MQTT_HOST").expect("MQTT_HOST not set");
+        let mqtt_host = env::var("MQTT_HOST").or::<()>(Ok("localhost".to_string())).unwrap();
         let mqtt_port = env::var("MQTT_PORT").or::<()>(Ok("1883".to_string()));
         let mqtt_port = mqtt_port.unwrap().parse::<u16>().expect("MQTT_PORT is not a valid port");
 
         AppConfig {
             address,
+            collection_time,
             mqtt_host,
             mqtt_port,
         }
@@ -73,7 +77,7 @@ fn main() {
 
     let (mut client, mut connection) = rumqttc::Client::new(mqtt_options, 10);
 
-    let pickups = get_pickups(&config.address).expect("Failed to get pickups");
+    let pickups = get_pickups(&config.address, &config.collection_time).expect("Failed to get pickups");
     let num_pickups = pickups.len();
 
     // Register sensors.
