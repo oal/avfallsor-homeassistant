@@ -6,7 +6,8 @@ use crate::{INTEGRATION_IDENTIFIER, INTEGRATION_NAME};
 #[derive(Debug)]
 pub enum PickupType {
     Garbage,
-    PaperPlastic,
+    Paper,
+    Plastic,
     GlassMetal,
     FoodWaste,
 }
@@ -15,7 +16,8 @@ impl PickupType {
     pub(crate) fn from_str(s: &str) -> Option<PickupType> {
         match s {
             "Restavfall" => Some(PickupType::Garbage),
-            "Papp, papir og plastemballasje" => Some(PickupType::PaperPlastic),
+            "Papp og papir" => Some(PickupType::Paper),
+            "Plastemballasje" => Some(PickupType::Plastic),
             "Glass- og metallemballasje" => Some(PickupType::GlassMetal),
             "Bioavfall" => Some(PickupType::FoodWaste),
             _ => None
